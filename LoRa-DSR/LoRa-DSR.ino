@@ -1,7 +1,7 @@
 #include <SPI.h>      // include libraries
 #include <LoRa.h>
 #include <SSD1306.h>
-#include <ArduinoJson.h>
+//#include <ArduinoJson.h>
 
 //////////////////////CONFIG NODE///////////////////////////
 String nodeFunction[4] = {"DEVICE", "CLUSTER", "GATEWAY", "NONE"};
@@ -167,6 +167,7 @@ void sendRREQ(byte destination) {
   Serial.println();
   LoRa.endPacket();           // finish packet and send it
   msgID++;
+  msgID %= 256;
 }
 
 
@@ -186,6 +187,7 @@ void sendRREP(byte pathlist[], byte pathlength, int cur_pos) {
   Serial.println();
   LoRa.endPacket();           // finish packet and send it
   msgID++;
+  msgID %= 256;
 }
 
 
