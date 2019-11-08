@@ -1,7 +1,7 @@
 #include <SPI.h>      // include libraries
 #include <LoRa.h>
 #include <SSD1306.h>
-#include <ArduinoJson.h>
+//#include <ArduinoJson.h>
 
 //////////////////////CONFIG NODE///////////////////////////
 String nodeFunction[4] = {"DEVICE", "CLUSTER", "GATEWAY", "NONE"};
@@ -31,10 +31,10 @@ int interval = 10000;       // interval between sends
 #define OLED_RST    16
 
 #define LORA_BAND   920E6 // LoRa Band (Thailand)
-#define PABOOST     true
+#define PABOOST     false
 
 // LoRaWAN Parameters
-#define TXPOWER 14
+#define TXPOWER 0
 #define RF_PACONFIG_PASELECT_PABOOST 0x80
 #define RF_PACONFIG_PASELECT_RFO 0x00
 #define SPREADING_FACTOR 12
@@ -49,13 +49,13 @@ uint64_t chipid;
 String MAC;
 
 //DSR algorithm
-uint16_t msgID = 0;   // Unique packet ID at source node
+byte msgID = 2;   // Unique packet ID at source node
 String packets[6] = {"RREQ", "RREP", "DATA", "RERR", "UACK", "MACK"};
 byte const maxDestinationRow = 4; // number of destination nodes
-byte const maxPathListColumn = 4; // number of path or hop nodes from destination node
-byte* routingTable[maxDestinationRow] = {}; // Routing Table
-byte const maxProcess = 16; // number of destination nodes
-uint32_t myprocesses[maxProcess] = {};
+byte routingTable[maxDestinationRow][2] = {}; // Routing Table
+byte const maxProcess = 2; // number of destination nodes
+uint16_t myprocesses[maxProcess] = {};
+byte const maxPathListLength = 16; // number of path or hop nodes from destination node
 bool timer_state = false;
 long prev_timer = 0;
 
@@ -81,7 +81,7 @@ void setup() {
 
   Serial.begin(115200);                   // initialize serial
   while (!Serial);
-  Serial.println("GAINT LoRa DSR V0.1");
+  Serial.println("GIANT LoRa DSR V0.1");
   display.drawString(0, 00, "GAINT LoRa DSR V0.1");
   display.display();
 
@@ -120,26 +120,22 @@ void setup() {
   MAC += String((uint32_t)chipid, HEX);
   Serial.println(MAC);
 
+  if (DeviceType != 2) {
+    Serial.println("Send RREQ");
+    sendRREQ(destinationID);
 
-  timer_state = true;
-  byte path[maxPathListColumn] = {};
-  path[0] = currentID;
-  Serial.println("Send RREQ");
-  sendRREQ(destinationID, path, 1);
-//  printTable();
-  prev_timer = millis();
+    uint16_t process = msgID * 100;
+    process += currentID;
+    arrayAddProcess(myprocesses, process, maxProcess);
+  }
 }
-int k = 10000;
+int k = 5000;
 void loop() {
   long cur_mil = millis();
-  if (timer_state && cur_mil - prev_timer > k) {
-    prev_timer = cur_mil;
+  if (DeviceType != 2 && timer_state && cur_mil - prev_timer > k) {
     // re-initiating RREQ.
-    byte path[maxPathListColumn] = {};
-    path[0] = currentID;
     Serial.println("Send RREQ again");
-    sendRREQ(destinationID, path, 1);
-//    printTable();
+    sendRREQ(destinationID);
 
     LoRa.receive();                     // go back into receive mode
   }
@@ -151,33 +147,47 @@ void loop() {
 }
 
 
-void sendRREQ(byte destination, byte pathlist[], byte pathlength) {
+void sendRREQ(byte destination) {
+  timer_state = true;
+  prev_timer = millis();
+  byte path[maxPathListLength] = {};
+  arrayAddElement(path, currentID, maxPathListLength);
+  byte pathlength = 1;
   LoRa.beginPacket();         // start packet
   LoRa.write(0);              // RREQ packet type
   LoRa.write(currentID);      // add source address
   LoRa.write(msgID);          // add Unique packet ID
-  LoRa.write(destination);  // add destination address
+  LoRa.write(destination);    // add destination address
   LoRa.write(pathlength);     // add path length
+  Serial.print("tx RREQ: " + String(currentID) + ":" + String(msgID) + ":" + String(destination) + ":" + String(pathlength));
   for (int i = 0; i < pathlength; i++) {
-    LoRa.write(pathlist[i]);  // add path list from source to destination
+    LoRa.write(path[i]);      // add path list from source to destination
+    Serial.print(":" + String(path[i]));
   }
+  Serial.println();
   LoRa.endPacket();           // finish packet and send it
   msgID++;
+  msgID %= 256;
 }
 
 
-void sendRREP(byte destination, byte pathlist[], byte pathlength) {
+void sendRREP(byte pathlist[], byte pathlength, int cur_pos) {
+  byte destination = cur_pos - 1;   // previous node in the path.
   LoRa.beginPacket();         // start packet
   LoRa.write(1);              // RREP packet type
   LoRa.write(currentID);      // add source address
   LoRa.write(msgID);          // add Unique packet ID
-  LoRa.write(destination);  // add destination address
+  LoRa.write(destination); // add destination address
   LoRa.write(pathlength);     // add path length
+  Serial.print("tx RREP: " + String(currentID) + ":" + String(msgID) + ":" + String(destination) + ":" + String(pathlength));
   for (int i = 0; i < pathlength; i++) {
     LoRa.write(pathlist[i]);  // add path list from source to destination
+    Serial.print(":" + String(pathlist[i]));
   }
+  Serial.println();
   LoRa.endPacket();           // finish packet and send it
   msgID++;
+  msgID %= 256;
 }
 
 
@@ -187,63 +197,67 @@ void onReceive(int packetSize) {
   // read packet header bytes:
   byte packetType = LoRa.read();      // incoming packet type
   byte source;
-  uint16_t UID;
-  uint32_t process;
+  byte UID;
+  uint16_t process;
   byte destination;
   byte pathlength;
-  byte path[maxPathListColumn];
+  byte path[maxPathListLength];
 
   String message;         // DATA
 
   byte original_source;   // UACK, MACK
   uint16_t original_UID;  // UACK, MACK
-
-  int i;
-  int index;
+  Serial.println();
+  int cur_pos;
   switch (packetType) {
     case 0:
       // statements RREQ processing
+      Serial.print("rx RREQ: ");
       source = LoRa.read();       // incoming sender address
       UID = LoRa.read();          // incoming message ID
       destination = LoRa.read();  // incoming destination address
       pathlength = LoRa.read();   // incoming path length
-      for (i = 0; i < pathlength; i++) {
+      Serial.print(String(source) + ":" + String(UID) + ":" + String(destination) + ":" + String(pathlength));
+      for (int i = 0; i < pathlength; i++) {
         path[i] = LoRa.read();;   // add path list from incoming path
+        Serial.print(":" + String(path[i]));
       }
+      Serial.println();
+      Serial.println("RSSI: " + String(LoRa.packetRssi()));
+      Serial.println("Snr: " + String(LoRa.packetSnr()));
 
       process = UID * 100;
       process += source;
-      Serial.println("Find Process: " + String(process));
-
+      printProcess(myprocesses, maxProcess);
       if (arrayIncludeProcess(myprocesses, process, maxProcess)) {  // check by comparing it with elements in processed list
+        Serial.println("Skip Process: " + String(process));
         return;   // THEN skip packet.
       } else {
-        Serial.println("Add Process");
-        arrayAddProcess(myprocesses, process, maxProcess);  // add <Source IP, UID > to the processed list.
+        Serial.println("Add Process: " + String(process));
+        arrayAddProcess(myprocesses, process, maxProcess);
+
         if (currentID == destination) {
           Serial.println("currentID == destination");
-          path[i] = currentID;    // append current node IP to path
-          Serial.println("Send RREP");
-          sendRREP(path[i - 1], path, i + 1);   // send RREP to previous node using path with new UID
-
-          // the path to destination from current node is in routing table of the current node
+          path[pathlength] = currentID;
+          pathlength++;
+          sendRREP(path, pathlength, pathlength - 1);
         } else if (tableIncludeDest(routingTable, destination, maxDestinationRow)) {
           Serial.println("destination in table");
-          path[i] = currentID;  // append Current IP to path
-          Serial.println("Send RREP");
-          sendRREP(path[i - 1], path, i + 1);   // send RREP to previous node through path and with new UID
+          path[pathlength] = currentID;
+          pathlength++;
+          sendRREP(path, pathlength, pathlength - 1);
         } else {
-          path[i] = currentID;  // append current IP to path
           Serial.println("rebroadcast");
-          // rebroadcast the packet
+          path[pathlength] = currentID;
+          pathlength++;
           LoRa.beginPacket();         // start packet
-          LoRa.write(packetType);     // RREP packet type
-          LoRa.write(source);         // add source address
-          LoRa.write(UID);            // add Unique packet ID
+          LoRa.write(0);              // RREQ packet type
+          LoRa.write(source);      // add source address
+          LoRa.write(UID);          // add Unique packet ID
           LoRa.write(destination);    // add destination address
           LoRa.write(pathlength);     // add path length
-          for (int j = 0; j < i + 1; j++) {
-            LoRa.write(path[j]);  // add path list from source to destination
+          for (int i = 0; i < pathlength; i++) {
+            LoRa.write(path[i]);      // add path list from source to destination
           }
           LoRa.endPacket();           // finish packet and send it
         }
@@ -251,38 +265,35 @@ void onReceive(int packetSize) {
       break;
     case 1:
       // statements RREP processing
+      Serial.print("rx RREP: ");
       source = LoRa.read();       // incoming sender address
       UID = LoRa.read();          // incoming message ID
       destination = LoRa.read();  // incoming destination address
       pathlength = LoRa.read();   // incoming path length
-      for (i = 0; i < pathlength; i++) {
+      Serial.print(String(source) + ":" + String(UID) + ":" + String(destination) + ":" + String(pathlength));
+      for (int i = 0; i < pathlength; i++) {
         path[i] = LoRa.read();;   // add path list from incoming path
+        Serial.print(":" + String(path[i]));
       }
-      index = arrayIncludeElement(path, currentID, pathlength);
-      // FOR each node that appear to the left of the current node in the path field of RREP packet
-      for (int j = 0; j < index; j++) {
-        byte routing[] = {path[j], path[index - 1]};
-        /*
-          make an entry in routing table for that node with predecessor node in
-          path field of RREP being the next hop in routing table
-        */
-        tableAddList(routingTable, routing, maxDestinationRow);
-      }
-      // FOR each node that appear to the right of the current node in the path field of RREP packet
-      for (int j = pathlength - 1; j > index; j--) {
-        byte routing[] = {path[j], path[index + 1]};
-        /*
-          make an entry in routing table for that node with successor node in
-          path field of RREP being the next hop in routing table
-        */
-        tableAddList(routingTable, routing, maxDestinationRow);
-      }
+      Serial.println();
+      Serial.println("RSSI: " + String(LoRa.packetRssi()));
+      Serial.println("Snr: " + String(LoRa.packetSnr()));
 
+      cur_pos = arrayIncludeElement(path, currentID, pathlength);
+      if (cur_pos == -1) return;
+      Serial.print("cur_pos: ");
+      Serial.println(cur_pos);
+      pathToTable(routingTable, path, pathlength, cur_pos);
+      printTable();
+      /*
+         IF Current node is not equal to destination node in RREP(i.e. original
+        source which initiated RREQ).
+      */
       if (currentID != path[0]) {
-        sendRREP(path[index - 1], path, index + 1);   // send the RREP packet to the previous node in the path
+        sendRREP(path, pathlength, cur_pos);
       } else {
         timer_state = false;
-        Serial.println("Start Send Data");
+        Serial.println("\nInitiate data transmission process.\n");
       }
       break;
     case 2:
@@ -296,7 +307,7 @@ void onReceive(int packetSize) {
 }
 
 
-bool arrayIncludeProcess(uint32_t array[], uint32_t process, byte max) {
+bool arrayIncludeProcess(uint16_t array[], uint16_t process, byte max) {
   for (int i = 0; i < max; i++) {
     if (array[i] == process) {
       return true;
@@ -305,30 +316,18 @@ bool arrayIncludeProcess(uint32_t array[], uint32_t process, byte max) {
   return false;
 }
 byte cur_process = 0;
-void arrayAddProcess(uint32_t array[], uint32_t process, byte max) {
+void arrayAddProcess(uint16_t array[], uint16_t process, byte max) {
   if (cur_process == max) {
     cur_process = 0;
   }
   array[cur_process] = process;
   cur_process++;
 }
-
-
-bool tableIncludeDest(byte** array, byte destination, byte max) {
+void printProcess(uint16_t array[], byte max) {
+  Serial.print("Array: {");
   for (int i = 0; i < max; i++) {
-    if (array[i][0] == destination) {
-      return true;
-    }
-  }
-  return false;
-}
-void tableAddList(byte** array, byte list[], byte max) {
-  for (int i = 0; i < max; i++) {
-    if (array[i][0] == 0) {
-      array[i] = list;
-      return;
-    }
-  }
+    Serial.print(array[i]);  Serial.print(" ");
+  }  Serial.println("}");
 }
 
 
@@ -340,8 +339,6 @@ int arrayIncludeElement(byte array[], byte element, byte max) {
   }
   return -1;
 }
-
-
 void arrayAddElement(byte array[], byte element, byte max) {
   for (int i = 0; i < max; i++) {
     if (array[i] == 0) {
@@ -349,6 +346,12 @@ void arrayAddElement(byte array[], byte element, byte max) {
       return;
     }
   }
+}
+void printArray(byte array[], byte max) {
+  Serial.print("Array: {");
+  for (int i = 0; i < max; i++) {
+    Serial.print(array[i]);  Serial.print(" ");
+  }  Serial.println("}");
 }
 
 
@@ -358,7 +361,6 @@ void configForLoRaWAN()
     LoRa.setTxPower(TXPOWER, RF_PACONFIG_PASELECT_PABOOST);
   else
     LoRa.setTxPower(TXPOWER, RF_PACONFIG_PASELECT_RFO);
-  //  LoRa.setTxPower(TXPOWER);
   LoRa.setSpreadingFactor(SPREADING_FACTOR);
   LoRa.setSignalBandwidth(BANDWIDTH);
   LoRa.setCodingRate4(CODING_RATE);
@@ -367,12 +369,52 @@ void configForLoRaWAN()
   LoRa.crc();
 }
 
-
+void pathToTable(byte routingTable[maxDestinationRow][2], byte path[], byte pathlength, byte cur_pos) {
+  for (int i = 0; i < cur_pos; i++) {
+    if (!tableIncludeDest(routingTable, path[i], maxDestinationRow)) {
+      byte routing[] = {path[i], path[cur_pos - 1]};
+      /*
+        make an entry in routing table for that node with predecessor node in
+        path field of RREP being the next hop in routing table
+      */
+      tableAddList(routingTable, routing, maxDestinationRow);
+    }
+  }
+  // FOR each node that appear to the right of the current node in the path field of RREP packet
+  for (int i = pathlength - 1; i > cur_pos; i--) {
+    if (!tableIncludeDest(routingTable, path[i], maxDestinationRow)) {
+      byte routing[] = {path[i], path[cur_pos + 1]};
+      /*
+        make an entry in routing table for that node with successor node in
+        path field of RREP being the next hop in routing table
+      */
+      tableAddList(routingTable, routing, maxDestinationRow);
+    }
+  }
+}
+bool tableIncludeDest(byte array[maxDestinationRow][2], byte destination, byte max) {
+  for (int i = 0; i < max; i++) {
+    if (array[i][0] == destination) {
+      return true;
+    }
+  }
+  return false;
+}
+void tableAddList(byte array[maxDestinationRow][2], byte list[], byte max) {
+  for (int i = 0; i < max; i++) {
+    if (array[i][0] == 0) {
+      array[i][0] = list[0];
+      array[i][1] = list[1];
+      return;
+    }
+  }
+}
 void printTable() {
   Serial.print("Table:");
   for (int i = 0; i < maxDestinationRow; i++) {
-    for (int j = 0; j < maxPathListColumn; j++) {
-      Serial.print(String(routingTable[i][j]));  Serial.print("\t");
+    for (int j = 0; j < 2; j++) {
+      Serial.print("\t");
+      Serial.print(routingTable[i][j]);
     }
     Serial.println();
   }
