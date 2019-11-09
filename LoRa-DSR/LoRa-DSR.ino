@@ -205,9 +205,9 @@ void check_timer(long cur_time) {
       // Send RERR to original source.
       sendRERR(original_source);
       // Remove entry for route to destination from the routing table.
-      tableDelList(routingTable, original_destination, maxDestinationRow);
+      tableDelList(routingTable, original_source, maxDestinationRow);
       // Send RREQ for destination, for sending the data.
-      sendRREQ(original_destination);
+      sendRREQ(original_source);
     }
   }
 
