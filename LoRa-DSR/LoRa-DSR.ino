@@ -10,10 +10,10 @@ String nodeFunction[4] = {"DEVICE", "CLUSTER", "GATEWAY", "NONE"};
 // 2 = Internet cluster station
 // 3 = Not connect
 byte DeviceType = 2;
-byte currentID = 93;        // This node address
+byte currentID = 94;        // This node address
 byte destinationID = 255;    // Original destination (0xFF broadcast)
 
-int interval = 60000;       // interval between sends
+int interval = 30000;       // interval between sends
 
 //Pinout! Customized for TTGO LoRa32 V2.0 Oled Board!
 #define SX1278_SCK  5    // GPIO5  -- SX1278's SCK
@@ -65,7 +65,7 @@ byte mack_K = 0;
 byte original_source = 0;
 byte original_destination = 0;
 
-long timedout = 5000;
+long timedout = 4000;
 
 // byte const maxQueue = 4; // number of data buffer
 // String data_queue[maxQueue] = {};
@@ -90,8 +90,8 @@ void setup() {
 
   Serial.begin(115200);                   // initialize serial
   while (!Serial);
-  Serial.println("GIANT LoRa DSR V0.3");
-  display.drawString(0, 00, "GAINT LoRa DSR V0.3");
+  Serial.println("GIANT LoRa DSR V0.4");
+  display.drawString(0, 00, "GAINT LoRa DSR V0.4");
   display.display();
 
   LoRa.setPins(SX1278_CS, SX1278_RST, SX1278_DI0);// set CS, reset, IRQ pin
@@ -131,7 +131,7 @@ void setup() {
 
   displayData();
   if (DeviceType != 2) {
-    message_data = "Hello World " + String(counter++);
+    message_data = String(currentID) + ":Hello World:" + String(counter++);
     sendDATA(message_data, destinationID);
   }
 }
@@ -143,7 +143,8 @@ void loop() {
 
   if (DeviceType != 2 && cur_time - lastsent > interval) {
     lastsent = cur_time;
-    //    sendDATA("Hello World" + String(counter++), destinationID);
+    //    message_data = String(currentID) + ":Hello World:" + String(counter++);
+    //    sendDATA(message_data, destinationID);
   }
 
   int packetSize = LoRa.parsePacket();
@@ -220,6 +221,7 @@ void sendRREQ(byte destination) {
 
   uint16_t process = msgID * 100;
   process += currentID;
+  Serial.print("Add Process: " + String(process) + " ");
   arrayAddProcess(myprocesses, process, maxProcess);
 
   // starting the timer
@@ -250,8 +252,8 @@ void sendRREQ(byte destination) {
   Serial.println("tx RREQ: " + tx_data);
   displayTX(tx_data);
   displayStatus("TX RREQ");
-  printTable();
-  displayTable();
+  //  printTable();
+  //  displayTable();
 
   LoRa.receive();
 }
@@ -268,6 +270,7 @@ void sendRREP(byte path[], byte pathlength, byte nexthop) {
     Serial.println();
     uint16_t process = msgID * 100;
     process += currentID;
+    Serial.print("Add Process: " + String(process) + " ");
     arrayAddProcess(myprocesses, process, maxProcess);
 
     LoRa.beginPacket();         // start packet
@@ -308,6 +311,7 @@ void sendDATA(String payload, byte destination) {
     Serial.println();
     uint16_t process = msgID * 100;
     process += currentID;
+    Serial.print("Add Process: " + String(process) + " ");
     arrayAddProcess(myprocesses, process, maxProcess);
 
     // Start the timer for (UACK).
@@ -331,10 +335,13 @@ void sendDATA(String payload, byte destination) {
     msgID %= 256;
 
     Serial.println("tx DATA: " + tx_data);
+    Serial.println("--------send DATA to destination--------");
+    Serial.println("DATA: " + payload);
+    Serial.println("----------------------------------------");
     displayTX(tx_data);
     displayStatus("TX DATA");
-    printTable();
-    displayTable();
+    //    printTable();
+    //    displayTable();
 
     LoRa.receive();
   } else {
@@ -347,6 +354,7 @@ void sendRERR(byte destination) {
   Serial.println();
   uint16_t process = msgID * 100;
   process += currentID;
+  Serial.print("Add Process: " + String(process) + " ");
   arrayAddProcess(myprocesses, process, maxProcess);
 
   byte path[maxPathListLength] = {};
@@ -372,8 +380,8 @@ void sendRERR(byte destination) {
   Serial.println("tx RERR: " + tx_data);
   displayTX(tx_data);
   displayStatus("TX RERR");
-  printTable();
-  displayTable();
+  //  printTable();
+  //  displayTable();
 
   LoRa.receive();
 }
@@ -399,8 +407,8 @@ void sendUACK(byte original_source, byte original_UID) {
     Serial.println("tx UACK: " + tx_data);
     displayTX(tx_data);
     displayStatus("TX UACK");
-    printTable();
-    displayTable();
+    //    printTable();
+    //    displayTable();
 
     LoRa.receive();
   }
@@ -426,8 +434,8 @@ void sendMACK(byte original_source, byte original_UID) {
     Serial.println("tx MACK: " + tx_data);
     displayTX(tx_data);
     displayStatus("TX MACK");
-    printTable();
-    displayTable();
+    //    printTable();
+    //    displayTable();
 
     LoRa.receive();
   }
@@ -465,10 +473,10 @@ void onReceive(int packetSize) {
         rx_data += ":" + String(path[i]);
       }
 
+      Serial.println("rx RREQ: " + rx_data);
       Serial.println("RSSI: " + String(LoRa.packetRssi()));
       Serial.println("Snr: " + String(LoRa.packetSnr()));
 
-      Serial.println("rx RREQ: " + rx_data);
       displayRX(rx_data);
       displayStatus("RX RREQ");
 
@@ -479,11 +487,11 @@ void onReceive(int packetSize) {
         Serial.println("Skip Process: " + String(process));
         return;   // THEN skip packet.
       } else {
-        Serial.println("Add Process: " + String(process));
+        Serial.print("Add Process: " + String(process) + " ");
         arrayAddProcess(myprocesses, process, maxProcess);
 
         if (currentID == destination) {
-          Serial.println("currentID == destination");
+          Serial.println("RREQ reach destination");
           path[pathlength] = currentID;
           pathlength++;
           sendRREP(path, pathlength, path[pathlength - 2]);
@@ -530,10 +538,10 @@ void onReceive(int packetSize) {
         return;
       }
 
+      Serial.println("rx RREP: " + rx_data);
       Serial.println("RSSI: " + String(LoRa.packetRssi()));
       Serial.println("Snr: " + String(LoRa.packetSnr()));
 
-      Serial.println("rx RREP: " + rx_data);
       displayRX(rx_data);
       displayStatus("RX RREP");
 
@@ -553,7 +561,7 @@ void onReceive(int packetSize) {
         // stop the timer.
         rreq_timer = 0;
         pathToTable(routingTable, path, pathlength, cur_pos);
-        Serial.println("\nInitiate data transmission process.\n");
+        Serial.print("\nInitiate data transmission process.\n");
         sendDATA(message_data, path[pathlength - 1]);
       }
       break;
@@ -578,7 +586,11 @@ void onReceive(int packetSize) {
       }
 
       rx_data = String(source) + ":" + String(UID) + ":" + String(nexthop) + ":" + String(destination) + ":" + String(pathlength);
+
       Serial.println("rx DATA: " + rx_data);
+      Serial.println("RSSI: " + String(LoRa.packetRssi()));
+      Serial.println("Snr: " + String(LoRa.packetSnr()));
+
       displayRX(rx_data);
       displayStatus("RX DATA");
 
@@ -600,8 +612,10 @@ void onReceive(int packetSize) {
       // IF Current node is the destination node.
       if (currentID == destination) {
         // Consume packet.
-        Serial.println("DATA reach destination");
-        Serial.println(message);
+        Serial.println();
+        Serial.println("---------DATA reach destination---------");
+        Serial.println("DATA: " + message);
+        Serial.println("----------------------------------------");
         // Send UACK.
         sendUACK(source, UID);
       } else {
@@ -630,15 +644,18 @@ void onReceive(int packetSize) {
       UID = LoRa.read();          // incoming message ID
       destination = LoRa.read();  // incoming destination address
       pathlength = LoRa.read();   // incoming path length
+
       rx_data = String(source) + ":" + String(UID) + ":" + String(destination) + ":" + String(pathlength);
+
       for (int i = 0; i < pathlength; i++) {
         path[i] = LoRa.read();    // add path list from incoming path
         rx_data += ":" + String(path[i]);
       }
+
+      Serial.println("rx RERR: " + rx_data);
       Serial.println("RSSI: " + String(LoRa.packetRssi()));
       Serial.println("Snr: " + String(LoRa.packetSnr()));
 
-      Serial.println("rx RERR: " + rx_data);
       displayRX(rx_data);
       displayStatus("RX RERR");
 
@@ -706,10 +723,10 @@ void onReceive(int packetSize) {
         return;
       }
 
+      Serial.println("rx UACK: " + rx_data);
       Serial.println("RSSI: " + String(LoRa.packetRssi()));
       Serial.println("Snr: " + String(LoRa.packetSnr()));
 
-      Serial.println("rx UACK: " + rx_data);
       displayRX(rx_data);
       displayStatus("RX UACK");
 
@@ -733,10 +750,10 @@ void onReceive(int packetSize) {
         return;
       }
 
+      Serial.println("rx MACK: " + rx_data);
       Serial.println("RSSI: " + String(LoRa.packetRssi()));
       Serial.println("Snr: " + String(LoRa.packetSnr()));
 
-      Serial.println("rx MACK: " + rx_data);
       displayRX(rx_data);
       displayStatus("RX MACK");
 
@@ -850,8 +867,8 @@ void tableAddList(byte array[maxDestinationRow][2], byte list[], byte max) {
     if (array[i][0] == 0) {
       array[i][0] = list[0];
       array[i][1] = list[1];
-//      printTable();
-//      displayTable();
+      //      printTable();
+      //      displayTable();
       return;
     }
   }
