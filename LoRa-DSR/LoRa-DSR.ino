@@ -9,9 +9,10 @@ String nodeFunction[4] = {"DEVICE", "CLUSTER", "GATEWAY", "NONE"};
 // 1 = Cluster station
 // 2 = Internet cluster station
 // 3 = Not connect
-byte DeviceType = 2;
+byte DeviceType = 1;
 byte currentID = 94;        // This node address
-byte destinationID = 255;    // Original destination (0xFF broadcast)
+byte destinationID = 93;    // Original destination (0xFF broadcast)
+String code_version = "1.0";
 
 int interval = 30000;       // interval between sends
 
@@ -72,6 +73,7 @@ long timedout = 4000;
 String message_data = "";
 
 int counter = 0;
+int success = 0;
 void setup() {
   pinMode(OLED_RST, OUTPUT);
   digitalWrite(OLED_RST, LOW);  // set GPIO16 low to reset OLED
@@ -90,8 +92,8 @@ void setup() {
 
   Serial.begin(115200);                   // initialize serial
   while (!Serial);
-  Serial.println("GIANT LoRa DSR V0.4");
-  display.drawString(0, 00, "GAINT LoRa DSR V0.4");
+  Serial.println("GIANT LoRa DSR v" + code_version);
+  display.drawString(0, 00, "GAINT LoRa DSR v" + code_version);
   display.display();
 
   LoRa.setPins(SX1278_CS, SX1278_RST, SX1278_DI0);// set CS, reset, IRQ pin
@@ -130,10 +132,10 @@ void setup() {
   Serial.println(MAC);
 
   displayData();
-  if (DeviceType != 2) {
-    message_data = String(currentID) + ":Hello World:" + String(counter++);
-    sendDATA(message_data, destinationID);
-  }
+//  if (DeviceType != 2) {
+//    message_data = String(currentID) + ":Hello World:" + String(counter++);
+//    sendDATA(message_data, destinationID);
+//  }
 }
 byte Kmax = 5;
 long lastsent = -interval;
@@ -143,8 +145,8 @@ void loop() {
 
   if (DeviceType != 2 && cur_time - lastsent > interval) {
     lastsent = cur_time;
-    //    message_data = String(currentID) + ":Hello World:" + String(counter++);
-    //    sendDATA(message_data, destinationID);
+    message_data = String(currentID) + ":Hello World:" + String(counter++);
+    sendDATA(message_data, destinationID);
   }
 
   int packetSize = LoRa.parsePacket();
@@ -160,7 +162,8 @@ void check_timer(long cur_time) {
     if (rreq_K < 5) {
       if (cur_time - rreq_timer > timedout) {
         rreq_timer = cur_time;
-        sendRREQ(destinationID);
+        Serial.println("rreq_timer time out");
+        sendRREQ(original_destination);
         rreq_K++;
       }
     } else {
@@ -184,9 +187,11 @@ void check_timer(long cur_time) {
       uack_timer = 0;
       uack_K = 0;
       // THEN initiate RREQ
+      Serial.println("uack_timer max time out");
       sendRREQ(destinationID);
     } else {
       // restart DATA initiation.
+      Serial.println("uack_timer time out");
       sendDATA(message_data, destinationID);
     }
   }
@@ -195,7 +200,7 @@ void check_timer(long cur_time) {
   if (mack_timer == 0) {
     // THEN drop the copy of the packet from the queue.
     // data_queue[original_destination % maxQueue] = "";
-  } else if (cur_time - mack_timer > timedout) {
+  } else if (cur_time - mack_timer > timedout/4) {
     mack_timer = cur_time;
     mack_K++;
     // IF Number of time out is equal to K
@@ -205,9 +210,11 @@ void check_timer(long cur_time) {
       // Send RERR to original source.
       sendRERR(original_source);
       // Remove entry for route to destination from the routing table.
-      tableDelList(routingTable, original_source, maxDestinationRow);
+      //      tableDelList(routingTable, original_source, maxDestinationRow);
+      byte nexthop = tableIncludeDest(routingTable, original_destination, maxDestinationRow);
+      tableDelHop(routingTable, nexthop, maxDestinationRow);
       // Send RREQ for destination, for sending the data.
-      sendRREQ(original_source);
+      sendRREQ(original_destination);
     }
   }
 
@@ -226,6 +233,7 @@ void sendRREQ(byte destination) {
 
   // starting the timer
   rreq_timer = millis();
+  original_destination = destination;
 
   // create the RREQ packet
   byte path[maxPathListLength] = {};
@@ -495,13 +503,14 @@ void onReceive(int packetSize) {
           path[pathlength] = currentID;
           pathlength++;
           sendRREP(path, pathlength, path[pathlength - 2]);
-        } else if (tableIncludeDest(routingTable, destination, maxDestinationRow)) {
-          Serial.println("destination in table");
-          path[pathlength] = currentID;
-          pathlength++;
-          sendRREP(path, pathlength, path[pathlength - 2]);
+          //        } else if (tableIncludeDest(routingTable, destination, maxDestinationRow)) {
+          //          Serial.println("destination in table");
+          //          path[pathlength] = currentID;
+          //          pathlength++;
+          //          sendRREP(path, pathlength, path[pathlength - 2]);
         } else {
           Serial.println("rebroadcast");
+          original_destination = destination;
           path[pathlength] = currentID;
           pathlength++;
           LoRa.beginPacket();         // start packet
@@ -533,17 +542,17 @@ void onReceive(int packetSize) {
         rx_data += ":" + String(path[i]);
       }
 
-      // uni-cast
-      if (currentID != nexthop) {
-        return;
-      }
-
       Serial.println("rx RREP: " + rx_data);
       Serial.println("RSSI: " + String(LoRa.packetRssi()));
       Serial.println("Snr: " + String(LoRa.packetSnr()));
 
       displayRX(rx_data);
       displayStatus("RX RREP");
+
+      // uni-cast
+      if (currentID != nexthop) {
+        return;
+      }
 
       cur_pos = arrayIncludeElement(path, currentID, pathlength);
       if (cur_pos == -1) return;
@@ -562,7 +571,7 @@ void onReceive(int packetSize) {
         rreq_timer = 0;
         pathToTable(routingTable, path, pathlength, cur_pos);
         Serial.print("\nInitiate data transmission process.\n");
-        sendDATA(message_data, path[pathlength - 1]);
+        sendDATA(message_data, destinationID);
       }
       break;
     case 2:
@@ -669,14 +678,22 @@ void onReceive(int packetSize) {
       // From the Routing table of the node, remove all those entries where
       // next node entry in the routing table is equal to the successor of the
       // current node in the path field of the RERR packet.
-      for (int i = 0; i < pathlength; i++) {
-        nexthop = tableIncludeDest(routingTable, path[i], maxDestinationRow);
-        if (nexthop > 0) {
-          tableDelHop(routingTable, nexthop, maxDestinationRow);
-        }
+      //      for (int i = 0; i < pathlength; i++) {
+      //        nexthop = tableIncludeDest(routingTable, path[i], maxDestinationRow);
+      //        if (nexthop > 0) {
+      //          tableDelHop(routingTable, nexthop, maxDestinationRow);
+      //        }
+      //      }
+
+      nexthop = tableIncludeDest(routingTable, destination, maxDestinationRow);
+      if (nexthop > 0) {
+        tableDelHop(routingTable, nexthop, maxDestinationRow);
+        byte routing[] = {destination, path[pathlength - 1]};
+        tableAddList(routingTable, routing, maxDestinationRow);
       }
       // Add the entries in the routing table for all the nodes that are successor
       // of the current node in the path field of the RERR packet.
+
       for (int i = 0; i < pathlength; i++) {
         if (!tableIncludeDest(routingTable, path[i], maxDestinationRow)) {
           byte routing[] = {path[i], path[pathlength - 1]};
@@ -735,6 +752,8 @@ void onReceive(int packetSize) {
       } else {
         uack_timer = 0;
         uack_K = 0;
+        Serial.println("Sending: " + String(counter));
+        Serial.println("Success: " + String(++success));
       }
       break;
     case 5:
@@ -831,25 +850,25 @@ void configForLoRaWAN() {
 
 void pathToTable(byte routingTable[maxDestinationRow][2], byte path[], byte pathlength, byte cur_pos) {
   for (int i = 0; i < cur_pos; i++) {
-    if (!tableIncludeDest(routingTable, path[i], maxDestinationRow)) {
-      byte routing[] = {path[i], path[cur_pos - 1]};
-      /*
-        make an entry in routing table for that node with predecessor node in
-        path field of RREP being the next hop in routing table
-      */
-      tableAddList(routingTable, routing, maxDestinationRow);
-    }
+    //    if (!tableIncludeDest(routingTable, path[i], maxDestinationRow)) {
+    byte routing[] = {path[i], path[cur_pos - 1]};
+    /*
+      make an entry in routing table for that node with predecessor node in
+      path field of RREP being the next hop in routing table
+    */
+    tableAddList(routingTable, routing, maxDestinationRow);
+    //    }
   }
   // FOR each node that appear to the right of the current node in the path field of RREP packet
   for (int i = pathlength - 1; i > cur_pos; i--) {
-    if (!tableIncludeDest(routingTable, path[i], maxDestinationRow)) {
-      byte routing[] = {path[i], path[cur_pos + 1]};
-      /*
-        make an entry in routing table for that node with successor node in
-        path field of RREP being the next hop in routing table
-      */
-      tableAddList(routingTable, routing, maxDestinationRow);
-    }
+    //    if (!tableIncludeDest(routingTable, path[i], maxDestinationRow)) {
+    byte routing[] = {path[i], path[cur_pos + 1]};
+    /*
+      make an entry in routing table for that node with successor node in
+      path field of RREP being the next hop in routing table
+    */
+    tableAddList(routingTable, routing, maxDestinationRow);
+    //    }
   }
   printTable();
   displayTable();
@@ -864,11 +883,13 @@ byte tableIncludeDest(byte array[maxDestinationRow][2], byte destination, byte m
 }
 void tableAddList(byte array[maxDestinationRow][2], byte list[], byte max) {
   for (int i = 0; i < max; i++) {
+    if (array[i][0] == list[0]) {
+      array[i][1] = list[1];
+      return;
+    }
     if (array[i][0] == 0) {
       array[i][0] = list[0];
       array[i][1] = list[1];
-      //      printTable();
-      //      displayTable();
       return;
     }
   }
