@@ -26,7 +26,8 @@
      "settings": {
       "caption": "MOVE",
       "text": "เคลื่อนที่ต่อไป",
-      "color": "green"
+      "color": "green",
+      "onClick": "json = { \"dst\":91, \"cod\":1 }\nmicrogear[\"GIANTGateway\"].chat(\"GIANTGateway\", json)"
      }
     },
     {
@@ -34,7 +35,8 @@
      "settings": {
       "caption": "STAY",
       "text": "ห้ามออกนอกพื้นที่",
-      "color": "blue"
+      "color": "blue",
+      "onClick": "json = { \"dst\":91, \"cod\":7 }\nmicrogear[\"GIANTGateway\"].chat(\"GIANTGateway\", json)"
      }
     }
    ]
@@ -74,7 +76,7 @@
      "type": "indicator",
      "settings": {
       "title": "",
-      "value": "1",
+      "value": "datasources[\"CenterData\"][\"cod\"]!=8",
       "on_text": "Operation Status",
       "off_text": "Operation Status"
      }
@@ -83,9 +85,11 @@
      "type": "Toggle",
      "settings": {
       "caption": "Operation",
-      "state": "1",
+      "state": "datasources[\"CenterData\"][\"cod\"]!=8",
       "ontext": "Start",
-      "offtext": "Finish"
+      "offtext": "Finish",
+      "onaction": "json = { \"dst\":255, \"cod\":9 }; microgear[\"GIANTGateway\"].chat(\"GIANTGateway\", json);",
+      "offaction": "json = { \"dst\":255, \"cod\":8 }; microgear[\"GIANTGateway\"].chat(\"GIANTGateway\", json);"
      }
     },
     {
@@ -93,7 +97,8 @@
      "settings": {
       "caption": "BEWARE",
       "text": "ระวังดับเพลิงอากาศ",
-      "color": "yellow"
+      "color": "yellow",
+      "onClick": "json = { \"dst\":91, \"cod\":5 }\nmicrogear[\"GIANTGateway\"].chat(\"GIANTGateway\", json)"
      }
     },
     {
@@ -101,7 +106,8 @@
      "settings": {
       "caption": "RESCUE",
       "text": "ช่วยชีวิตด่วน",
-      "color": "red"
+      "color": "red",
+      "onClick": "status = datasources[\"91StationData\"][\"status\"]\nif (status == 2) {\n    lat = datasources[\"91StationData\"][\"latitude\"];\n    lon = datasources[\"91StationData\"][\"longitude\"];\n    json = { \"dst\":255, \"cod\":15, \"lat\":lat, \"lon\":lon };\n    microgear[\"GIANTGateway\"].chat(\"GIANTGateway\", json)\n}"
      }
     }
    ]
@@ -130,7 +136,7 @@
      "type": "gauge",
      "settings": {
       "title": "Team Status",
-      "value": "datasources[\"93WeatherData\"][\"status\"]",
+      "value": "datasources[\"91StationData\"][\"status\"]",
       "min_value": 0,
       "max_value": "2"
      }
@@ -140,7 +146,7 @@
      "settings": {
       "title": "Latitude",
       "size": "regular",
-      "value": "18.145635",
+      "value": "datasources[\"91StationData\"][\"latitude\"]",
       "animate": true,
       "units": "degrees"
      }
@@ -150,7 +156,7 @@
      "settings": {
       "title": "Longitude",
       "size": "regular",
-      "value": "98.465335",
+      "value": "datasources[\"91StationData\"][\"longitude\"]",
       "animate": true,
       "units": "degrees"
      }
@@ -171,8 +177,8 @@
     {
      "type": "longdo map",
      "settings": {
-      "lat": "datasources[\"93WeatherData\"][\"latitude\"]",
-      "lon": "datasources[\"93WeatherData\"][\"longitude\"]",
+      "lat": "datasources[\"91StationData\"][\"latitude\"]",
+      "lon": "datasources[\"91StationData\"][\"longitude\"]",
       "zoom": "16",
       "style": "map",
       "traffic": false,
@@ -221,7 +227,7 @@
      "type": "indicator",
      "settings": {
       "title": "Link Status",
-      "value": "0",
+      "value": "var diff_time = 300; //Second\n\nvar last = datasources[\"91StationData\"][\"timestamp\"];\nvar now = datasources[\"MainClock\"][\"numeric_value\"]/1000;\n\nif (now - last > diff_time) {\n    return 0;\n}else{\n    return 1;\n}",
       "on_text": "Connected",
       "off_text": "Not Connect"
      }
@@ -231,7 +237,7 @@
      "settings": {
       "title": "Last Update",
       "size": "regular",
-      "value": "\"11:02:05 PM\"",
+      "value": "var d = new Date(datasources[\"91StationData\"][\"timestamp\"]*1000);\nreturn d.toLocaleTimeString()",
       "animate": true
      }
     },
@@ -240,7 +246,7 @@
      "settings": {
       "title": "Speed",
       "size": "regular",
-      "value": "5.1",
+      "value": "datasources[\"91StationData\"][\"speed\"]",
       "animate": true,
       "units": "km/hr"
      }
@@ -250,7 +256,7 @@
      "settings": {
       "title": "Satellite Count",
       "size": "regular",
-      "value": "5",
+      "value": "datasources[\"91StationData\"][\"satellite_count\"]",
       "animate": true,
       "units": "satellites"
      }
@@ -260,7 +266,7 @@
      "settings": {
       "title": "Latitude",
       "size": "regular",
-      "value": "18.145635",
+      "value": "datasources[\"91StationData\"][\"latitude\"]",
       "animate": true,
       "units": "degrees"
      }
@@ -270,7 +276,7 @@
      "settings": {
       "title": "Longitude",
       "size": "regular",
-      "value": "98.465335",
+      "value": "datasources[\"91StationData\"][\"longitude\"]",
       "animate": true,
       "units": "degrees"
      }
@@ -279,7 +285,7 @@
      "type": "gauge",
      "settings": {
       "title": "Device Temperature",
-      "value": "42.74",
+      "value": "var dev_temp = datasources[\"91StationData\"][\"device_temperature\"];\nreturn dev_temp.toPrecision(4);",
       "units": "°C",
       "min_value": 0,
       "max_value": "100"
@@ -304,7 +310,7 @@
      "type": "indicator",
      "settings": {
       "title": "Link Status",
-      "value": "0",
+      "value": "var diff_time = 300; //Second\n\nvar last = datasources[\"92StationData\"][\"timestamp\"];\nvar now = datasources[\"MainClock\"][\"numeric_value\"]/1000;\n\nif (now - last > diff_time) {\n    return 0;\n}else{\n    return 1;\n}",
       "on_text": "Connected",
       "off_text": "Not Connect"
      }
@@ -314,7 +320,7 @@
      "settings": {
       "title": "Last Update",
       "size": "regular",
-      "value": "\"11:02:35 PM\"",
+      "value": "var d = new Date(datasources[\"92StationData\"][\"timestamp\"]*1000);\nreturn d.toLocaleTimeString()",
       "animate": true
      }
     },
@@ -323,7 +329,7 @@
      "settings": {
       "title": "Speed",
       "size": "regular",
-      "value": "0.153",
+      "value": "datasources[\"92StationData\"][\"speed\"]",
       "animate": true,
       "units": "km/hr"
      }
@@ -333,7 +339,7 @@
      "settings": {
       "title": "Satellite Count",
       "size": "regular",
-      "value": "7",
+      "value": "datasources[\"92StationData\"][\"satellite_count\"]",
       "animate": true,
       "units": "satellites"
      }
@@ -343,7 +349,7 @@
      "settings": {
       "title": "Latitude",
       "size": "regular",
-      "value": "18.154682",
+      "value": "datasources[\"92StationData\"][\"latitude\"]",
       "animate": true,
       "units": "degrees"
      }
@@ -353,7 +359,7 @@
      "settings": {
       "title": "Longitude",
       "size": "regular",
-      "value": "98.748557",
+      "value": "datasources[\"92StationData\"][\"longitude\"]",
       "animate": true,
       "units": "degrees"
      }
@@ -362,7 +368,7 @@
      "type": "gauge",
      "settings": {
       "title": "Device Temperature",
-      "value": "50.15",
+      "value": "var dev_temp = datasources[\"92StationData\"][\"device_temperature\"];\nreturn dev_temp.toPrecision(4);",
       "units": "°C",
       "min_value": 0,
       "max_value": "100"
@@ -372,7 +378,7 @@
      "type": "gauge",
      "settings": {
       "title": "Weather Temperature",
-      "value": "30",
+      "value": "var temp = datasources[\"92WeatherFeed\"][\"data\"][\"lastest_data\"][2][\"values\"][0][1]\nreturn temp.toPrecision(4);",
       "units": "°C",
       "min_value": 0,
       "max_value": 100
@@ -382,7 +388,7 @@
      "type": "gauge",
      "settings": {
       "title": "Weather Humidity",
-      "value": "41",
+      "value": "var humi = datasources[\"92WeatherFeed\"][\"data\"][\"lastest_data\"][0][\"values\"][0][1]\nreturn humi.toPrecision(4);",
       "units": "%",
       "min_value": 0,
       "max_value": 100
@@ -392,7 +398,7 @@
      "type": "gauge",
      "settings": {
       "title": "Weather Pressure",
-      "value": "924",
+      "value": "var pres = datasources[\"92WeatherFeed\"][\"data\"][\"lastest_data\"][1][\"values\"][0][1]\nreturn pres.toPrecision(4);",
       "units": "hPa",
       "min_value": "900",
       "max_value": "1100"
@@ -417,7 +423,7 @@
      "type": "indicator",
      "settings": {
       "title": "Link Status",
-      "value": "var diff_time = 300; //Second\n\nvar last = datasources[\"93WeatherData\"][\"timestamp\"];\nvar now = datasources[\"MainClock\"][\"numeric_value\"]/1000;\n\nif (now - last > diff_time) {\n    return 0;\n}else{\n    return 1;\n}",
+      "value": "var diff_time = 300; //Second\n\nvar last = datasources[\"93StationData\"][\"timestamp\"];\nvar now = datasources[\"MainClock\"][\"numeric_value\"]/1000;\n\nif (now - last > diff_time) {\n    return 0;\n}else{\n    return 1;\n}",
       "on_text": "Connected",
       "off_text": "Not Connect"
      }
@@ -427,7 +433,7 @@
      "settings": {
       "title": "Last Update",
       "size": "regular",
-      "value": "var d = new Date(datasources[\"93WeatherData\"][\"timestamp\"]*1000);\nreturn d.toLocaleTimeString()",
+      "value": "var d = new Date(datasources[\"93StationData\"][\"timestamp\"]*1000);\nreturn d.toLocaleTimeString()",
       "animate": true
      }
     },
@@ -436,7 +442,7 @@
      "settings": {
       "title": "Speed",
       "size": "regular",
-      "value": "var speed = datasources[\"93WeatherData\"][\"speed\"];\nreturn speed.toPrecision(4);",
+      "value": "var speed = datasources[\"93StationData\"][\"speed\"];\nreturn speed.toPrecision(4);",
       "animate": true,
       "units": "km/hr"
      }
@@ -475,7 +481,7 @@
      "type": "gauge",
      "settings": {
       "title": "Device Temperature",
-      "value": "var dev_temp = datasources[\"93WeatherData\"][\"device_temperature\"];\nreturn dev_temp.toPrecision(4);",
+      "value": "var dev_temp = datasources[\"93StationData\"][\"device_temperature\"];\nreturn dev_temp.toPrecision(4);",
       "units": "°C",
       "min_value": 0,
       "max_value": "100"
@@ -485,7 +491,7 @@
      "type": "gauge",
      "settings": {
       "title": "Weather Temperature",
-      "value": "datasources[\"93WeatherFeed\"][\"data\"][\"lastest_data\"][2][\"values\"][0][1]",
+      "value": "var temp = datasources[\"93WeatherFeed\"][\"data\"][\"lastest_data\"][2][\"values\"][0][1]\nreturn temp.toPrecision(4);",
       "units": "°C",
       "min_value": 0,
       "max_value": 100
@@ -495,7 +501,7 @@
      "type": "gauge",
      "settings": {
       "title": "Weather Humidity",
-      "value": "datasources[\"93WeatherFeed\"][\"data\"][\"lastest_data\"][0][\"values\"][0][1]",
+      "value": "var humi = datasources[\"93WeatherFeed\"][\"data\"][\"lastest_data\"][0][\"values\"][0][1]\nreturn humi.toPrecision(4);",
       "units": "%",
       "min_value": 0,
       "max_value": 100
@@ -505,7 +511,7 @@
      "type": "gauge",
      "settings": {
       "title": "Weather Pressure",
-      "value": "900+datasources[\"93WeatherFeed\"][\"data\"][\"lastest_data\"][1][\"values\"][0][1]",
+      "value": "var pres = datasources[\"93WeatherFeed\"][\"data\"][\"lastest_data\"][1][\"values\"][0][1]\nreturn pres.toPrecision(4);",
       "units": "hPa",
       "min_value": "900",
       "max_value": "1100"
@@ -514,7 +520,7 @@
    ]
   },
   {
-   "title": "Cluster Weather Trend",
+   "title": "Graph Trending",
    "width": 1,
    "row": {
     "3": 73,
@@ -530,6 +536,20 @@
      "type": "FeedView",
      "settings": {
       "title": "Cluster Weather Trend",
+      "datasource": "datasources[\"92WeatherFeed\"][\"data\"]",
+      "type": "line",
+      "color": "",
+      "marker": false,
+      "multipleaxis": true,
+      "autogap": false,
+      "height_block": "300",
+      "height": "5"
+     }
+    },
+    {
+     "type": "FeedView",
+     "settings": {
+      "title": "Gateway Weather Trend",
       "datasource": "datasources[\"93WeatherFeed\"][\"data\"]",
       "type": "line",
       "color": "",
@@ -543,10 +563,10 @@
    ]
   },
   {
-   "title": "Gateway Weather Trend",
+   "title": "ข้อตกลงในการใช้ซอฟต์แวร์",
    "width": 1,
    "row": {
-    "3": 85,
+    "3": 95,
     "9": 83
    },
    "col": {
@@ -556,18 +576,10 @@
    "col_width": "3",
    "widgets": [
     {
-     "type": "FeedView",
+     "type": "html",
      "settings": {
-      "title": "Gateway Weather Trend",
-      "datasource": "datasources[\"93WeatherFeed\"][\"data\"]",
-      "type": "line",
-      "yzero": false,
-      "color": "",
-      "marker": false,
-      "multipleaxis": true,
-      "autogap": false,
-      "height_block": "300",
-      "height": "5"
+      "html": "<center><br>ข้อตกลงในการใช้ซอฟต์แวร์<br>\nซอฟต์แวร์นี้เป็นผลงานที่พัฒนาขึ้นโดย นาย วรรณรัตน์ บุญยัง จากคณะวิศวกรรมศาสตร์ มหาวิทยาลัยเชียงใหม่ ภายใต้การดูแลของ ผศ.ดร. ภาสกร แช่มประเสริฐ \nภายใต้โครงการระบบติดตามพิกัดเจ้าหน้าที่ดับไฟป่าผ่านโครงข่ายไร้สายเฉพาะกิจ ซึ่งสนับสนุนโดย สำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติ \nโดยมีวัตถุประสงค์เพื่อส่งเสริมให้นักเรียนและนักศึกษาได้เรียนรู้และฝึกทักษะในการพัฒนาซอฟต์แวร์ ลิขสิทธิ์ของซอฟต์แวร์นี้จึงเป็นของผู้พัฒนา \nซึ่งผู้พัฒนาได้อนุญาตให้สำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติ เผยแพร่ซอฟต์แวร์นี้ตาม “ต้นฉบับ” โดยไม่มีการแก้ไขดัดแปลงใด ๆ ทั้งสิ้น \nให้แก่บุคคลทั่วไปได้ใช้เพื่อประโยชน์ส่วนบุคคลหรือประโยชน์ทางการศึกษาที่ไม่มีวัตถุประสงค์ในเชิงพาณิชย์ โดยไม่คิดค่าตอบแทนการใช้ซอฟต์แวร์ \nดังนั้น สำนักงานพัฒนาวิทยาศาสตร์และเทคโนโลยีแห่งชาติจึงไม่มีหน้าที่ในการดูแล บำรุงรักษา จัดการอบรมการใช้งาน หรือพัฒนาประสิทธิภาพซอฟต์แวร์ \nรวมทั้งไม่รับรองความถูกต้องหรือประสิทธิภาพการทำงานของซอฟต์แวร์ ตลอดจนไม่รับประกันความเสียหายต่าง ๆ อันเกิดจากการใช้ซอฟต์แวร์นี้ทั้งสิ้น<br>\n\n<br>License Agreement<br>\nThis software is a work developed by Mr. Wanarut Boonyung from Faculty of Engineering, Chiang Mai University \nunder the provision of Asst. Prof. Paskorn Champrasert, Ph.D. under Geo-Location Tracking System for Interagency Hotshot Crew \nusing MQTT Ad-Hoc Lora NeTwork (GIANT), which has been supported by the National Science and Technology Development Agency (NSTDA), \n    in order to encourage pupils and students to learn and practice their skills in developing software. Therefore, \n        the intellectual property of this software shall belong to the developer and the developer gives NSTDA a permission \n        to distribute this software as an “as is” and non-modified software for a temporary and non-exclusive use without \n        remuneration to anyone for his or her own purpose or academic purpose, which are not commercial purposes. \n        In this connection, NSTDA shall not be responsible to the user for taking care, maintaining, training or developing \n        the efficiency of this software. Moreover, NSTDA shall not be liable for any error, software efficiency and \n        damages in connection with or arising out of the use of the software.”<br></center>\n",
+      "height": 6
      }
     }
    ]
@@ -589,7 +601,54 @@
     "name": "93WeatherFeed",
     "feedid": "93WeatherFeed",
     "apikey": "fOl8eN24TjtC6VYwIxxMnRFF53yzcYcs",
-    "granularity_value": "30",
+    "granularity_value": "1",
+    "granularity_unit": "minutes",
+    "since_value": "2",
+    "since_unit": "days",
+    "interval": "10"
+   }
+  },
+  {
+   "name": "93StationData",
+   "type": "JSON",
+   "settings": {
+    "name": "93StationData",
+    "url": "https://gianttable.firebaseio.com/now/93Weather.json",
+    "use_thingproxy": true,
+    "refresh": 3,
+    "method": "GET"
+   }
+  },
+  {
+   "name": "91StationData",
+   "type": "JSON",
+   "settings": {
+    "name": "91StationData",
+    "url": "https://gianttable.firebaseio.com/now/91Weather.json",
+    "use_thingproxy": true,
+    "refresh": 3,
+    "method": "GET"
+   }
+  },
+  {
+   "name": "92StationData",
+   "type": "JSON",
+   "settings": {
+    "name": "92StationData",
+    "url": "https://gianttable.firebaseio.com/now/92Weather.json",
+    "use_thingproxy": true,
+    "refresh": 5,
+    "method": "GET"
+   }
+  },
+  {
+   "name": "92WeatherFeed",
+   "type": "netpie_feed",
+   "settings": {
+    "name": "92WeatherFeed",
+    "feedid": "92WeatherFeed",
+    "apikey": "aXwIpUCOCpn5hDQ0fUZS8Yd8EcEwkZLt",
+    "granularity_value": "120",
     "granularity_unit": "seconds",
     "since_value": "2",
     "since_unit": "days",
@@ -597,13 +656,24 @@
    }
   },
   {
-   "name": "93WeatherData",
+   "name": "GIANTGateway",
+   "type": "netpie_microgear",
+   "settings": {
+    "name": "GIANTGateway",
+    "appid": "GIANT",
+    "key": "jmcelnYHZMPXPvo",
+    "secret": "8tuJjmr1l2zm4j1QLcvlyJXt3",
+    "topics": "/#"
+   }
+  },
+  {
+   "name": "CenterData",
    "type": "JSON",
    "settings": {
-    "name": "93WeatherData",
-    "url": "https://gianttable.firebaseio.com/now/93Weather.json",
+    "name": "CenterData",
+    "url": "https://gianttable.firebaseio.com/now/CenterData.json",
     "use_thingproxy": true,
-    "refresh": 10,
+    "refresh": 1,
     "method": "GET"
    }
   }
