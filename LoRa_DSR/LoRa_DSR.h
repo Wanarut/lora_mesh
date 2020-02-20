@@ -24,8 +24,10 @@ class LoRa_DSR
     String checkPacket();
     void check_timer(long cur_time = millis());
     void sendDATA(String payload, byte destination);
-    void configForLoRaWAN(byte _TXPOWER = 20, byte _SPREADING_FACTOR = 12, long _BANDWIDTH = 500E3, byte _CODING_RATE = 5);
-  
+    void configForLoRaWAN(int _TXPOWER = 14, int _SPREADING_FACTOR = 12, long _BANDWIDTH = 125000, int _CODING_RATE = 5, long _PREAMBLE_LENGTH = 8, int _SYNC_WORD = 0x34);
+    int packetRssi();
+    float packetSnr();
+
   private:
     String nodeFunction[4] = {"DEVICE", "CLUSTER", "GATEWAY", "NONE"};
     // This node is cluster?
@@ -50,11 +52,11 @@ class LoRa_DSR
     SSD1306Wire *display;
 
     // LoRaWAN Parameters
-    #define TXPOWER 20
+    #define TXPOWER 14
     #define RF_PACONFIG_PASELECT_PABOOST 0x80
     #define RF_PACONFIG_PASELECT_RFO 0x00
     #define SPREADING_FACTOR 12
-    #define BANDWIDTH 500E3
+    #define BANDWIDTH 125000
     #define CODING_RATE 5
     #define PREAMBLE_LENGTH 8
     #define SYNC_WORD 0x34
@@ -73,7 +75,7 @@ class LoRa_DSR
     uint16_t myprocesses[maxProcess] = {};
     byte const maxPathListLength = 16; // number of path or hop nodes from destination node
 
-    #define timedout 4000//millisecond
+    #define timedout 8000//millisecond
     String UACK_Sign = "4O6XtlTMhy";
     long rreq_timer = 0;
     byte rreq_K = 0;
@@ -81,7 +83,7 @@ class LoRa_DSR
     byte uack_K = 0;
     long mack_timer = 0;
     byte mack_K = 0;
-    byte Kmax = 5;
+    byte Kmax = 3;
     byte original_sourceID = 0;
     byte original_destination = 0;
 

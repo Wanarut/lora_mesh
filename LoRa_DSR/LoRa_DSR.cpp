@@ -226,19 +226,26 @@ void LoRa_DSR::sendDATA(String payload, byte destination)
     sendRREQ(destination);
   }
 }
-void LoRa_DSR::configForLoRaWAN(byte _TXPOWER, byte _SPREADING_FACTOR, long _BANDWIDTH, byte _CODING_RATE)
+void LoRa_DSR::configForLoRaWAN(int _TXPOWER, int _SPREADING_FACTOR, long _BANDWIDTH, int _CODING_RATE, long _PREAMBLE_LENGTH, int _SYNC_WORD)
 {
-  if (PABOOST)
-    LoRa.setTxPower(TXPOWER, RF_PACONFIG_PASELECT_PABOOST);
+  if(PABOOST == true)
+	  LoRa.setTxPower(_TXPOWER, RF_PACONFIG_PASELECT_PABOOST);
   else
-    LoRa.setTxPower(TXPOWER, RF_PACONFIG_PASELECT_RFO);
-  LoRa.setSpreadingFactor(SPREADING_FACTOR);
-  LoRa.setSPIFrequency(10E6);
-  LoRa.setSignalBandwidth(BANDWIDTH);
-  LoRa.setCodingRate4(CODING_RATE);
-  LoRa.setPreambleLength(PREAMBLE_LENGTH);
-  LoRa.setSyncWord(SYNC_WORD);
+	  LoRa.setTxPower(_TXPOWER, RF_PACONFIG_PASELECT_RFO);
+  LoRa.setSpreadingFactor(_SPREADING_FACTOR);
+  LoRa.setSignalBandwidth(_BANDWIDTH);
+  LoRa.setCodingRate4(_CODING_RATE);
+  LoRa.setPreambleLength(_PREAMBLE_LENGTH);
+  LoRa.setSyncWord(_SYNC_WORD);
   LoRa.crc();
+}
+int LoRa_DSR::packetRssi()
+{
+  return LoRa.packetRssi();
+}
+float LoRa_DSR::packetSnr()
+{
+  return LoRa.packetSnr();
 }
 
 // Private Methods /////////////////////////////////////////////////////////////
@@ -464,6 +471,7 @@ void LoRa_DSR::onReceive(int packetSize)
         Serial.println("rx RREQ: " + rx_data);
         Serial.println("RSSI: " + String(LoRa.packetRssi()));
         Serial.println("Snr: " + String(LoRa.packetSnr()));
+        rx_data = "RSSI:" + String(LoRa.packetRssi()) + " Snr:" + String(LoRa.packetSnr());
 
         displayRX(rx_data);
         displayStatus("RX RREQ");
@@ -489,7 +497,7 @@ void LoRa_DSR::onReceive(int packetSize)
           //          path[pathlength] = currentID;
           //          pathlength++;
           //          sendRREP(path, pathlength, path[pathlength - 2]);
-        } else {
+        } else if (DeviceType != 0) {
           if (enableDebug) Serial.println("rebroadcast");
           original_destination = destination;
           path[pathlength] = currentID;
@@ -527,6 +535,7 @@ void LoRa_DSR::onReceive(int packetSize)
         Serial.println("rx RREP: " + rx_data);
         Serial.println("RSSI: " + String(LoRa.packetRssi()));
         Serial.println("Snr: " + String(LoRa.packetSnr()));
+        rx_data = "RSSI:" + String(LoRa.packetRssi()) + " Snr:" + String(LoRa.packetSnr());
 
         displayRX(rx_data);
         displayStatus("RX RREP");
@@ -583,6 +592,7 @@ void LoRa_DSR::onReceive(int packetSize)
         Serial.println("rx DATA: " + rx_data);
         Serial.println("RSSI: " + String(LoRa.packetRssi()));
         Serial.println("Snr: " + String(LoRa.packetSnr()));
+        rx_data = "RSSI:" + String(LoRa.packetRssi()) + " Snr:" + String(LoRa.packetSnr());
 
         displayRX(rx_data);
         displayStatus("RX DATA");
@@ -615,7 +625,7 @@ void LoRa_DSR::onReceive(int packetSize)
         recieved_data = message;
         // Send UACK.
         sendUACK(source, UID);
-      } else {
+      } else if (DeviceType != 0) {
         // Start the timer (MACK).
         mack_timer = millis();
         original_sourceID = source;
@@ -653,6 +663,7 @@ void LoRa_DSR::onReceive(int packetSize)
         Serial.println("rx RERR: " + rx_data);
         Serial.println("RSSI: " + String(LoRa.packetRssi()));
         Serial.println("Snr: " + String(LoRa.packetSnr()));
+        rx_data = "RSSI:" + String(LoRa.packetRssi()) + " Snr:" + String(LoRa.packetSnr());
 
         displayRX(rx_data);
         displayStatus("RX RERR");
@@ -699,21 +710,23 @@ void LoRa_DSR::onReceive(int packetSize)
       // IF current node is not equal to destination node
       if (currentID != destination) {
         // prepend the node IP address and send the packet towards the destination
-        nexthop = tableIncludeDest(routingTable, destination, maxDestinationRow);
-        path[pathlength] = currentID;
-        pathlength++;
-        LoRa.beginPacket();         // start packet
-        LoRa.write(3);              // RREQ packet type
-        LoRa.write(source);      // add source address
-        LoRa.write(UID);          // add Unique packet ID
-        LoRa.write(destination);    // add destination address
-        LoRa.write(pathlength);     // add path length
-        for (int i = 0; i < pathlength; i++) {
-          LoRa.write(path[i]);      // add path list from source to destination
-        }
-        LoRa.endPacket();           // finish packet and send it
+        if (DeviceType != 0){
+          nexthop = tableIncludeDest(routingTable, destination, maxDestinationRow);
+          path[pathlength] = currentID;
+          pathlength++;
+          LoRa.beginPacket();         // start packet
+          LoRa.write(3);              // RREQ packet type
+          LoRa.write(source);      // add source address
+          LoRa.write(UID);          // add Unique packet ID
+          LoRa.write(destination);    // add destination address
+          LoRa.write(pathlength);     // add path length
+          for (int i = 0; i < pathlength; i++) {
+            LoRa.write(path[i]);      // add path list from source to destination
+          }
+          LoRa.endPacket();           // finish packet and send it
 
-        LoRa.receive();
+          LoRa.receive();
+        }
       } else {
         if (enableDebug) Serial.println("RERR reached source");
       }
@@ -736,6 +749,7 @@ void LoRa_DSR::onReceive(int packetSize)
         Serial.println("rx UACK: " + rx_data);
         Serial.println("RSSI: " + String(LoRa.packetRssi()));
         Serial.println("Snr: " + String(LoRa.packetSnr()));
+        rx_data = "RSSI:" + String(LoRa.packetRssi()) + " Snr:" + String(LoRa.packetSnr());
 
         displayRX(rx_data);
         displayStatus("RX UACK");
@@ -768,6 +782,7 @@ void LoRa_DSR::onReceive(int packetSize)
         Serial.println("rx MACK: " + rx_data);
         Serial.println("RSSI: " + String(LoRa.packetRssi()));
         Serial.println("Snr: " + String(LoRa.packetSnr()));
+        rx_data = "RSSI:" + String(LoRa.packetRssi()) + " Snr:" + String(LoRa.packetSnr());
 
         displayRX(rx_data);
         displayStatus("RX MACK");
